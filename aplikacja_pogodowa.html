@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aplikacja Pogodowa – Wykres Godzinowy + Prognoza</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Quicksand:wght@500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* Stylowanie aplikacji: wygląd nowoczesny, responsywny */
+    body {
+      margin: 0;
+      font-family: 'Quicksand', sans-serif;
+      background: linear-gradient(to right, #a1c4fd, #c2e9fb);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    .container {
+      background: white;
+      padding: 2rem;
+      border-radius: 1rem;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+      text-align: center;
+      width: 100%;
+      max-width: 500px;
+    }
+    input, button {
+      padding: 0.5rem;
+      font-size: 1rem;
+      margin: 0.5rem 0;
+      width: 100%;
+      border-radius: 0.5rem;
+      border: 1px solid #ccc;
+    }
+    button {
+      background-color: #2196f3;
+      color: white;
+      cursor: pointer;
+      border: none;
+    }
+    button:hover {
+      background-color: #1976d2;
+    }
+    .weather-info {
+      margin-top: 1rem;
+    }
+    .icon {
+      font-size: 3rem;
+    }
+    #chartContainer {
+      margin-top: 2rem;
+    }
+    canvas {
+      width: 100% !important;
+      height: auto !important;
+    }
+    .forecast {
+      margin-top: 1.5rem;
+      text-align: center;
+      font-size: 1rem;
+    }
+    .forecast h3 {
+      margin-bottom: 1rem;
+    }
+    .forecast p {
+      margin: 0.5rem 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Pogoda 🌤️</h1>
+    <input type="text" id="cityInput" placeholder="Wpisz miasto">
+    <button onclick="getWeather()">Pokaż pogodę</button>
+    <div id="weather" class="weather-info"></div>
+    <div id="chartContainer">
+      <canvas id="hourlyChart"></canvas>
+    </div>
+    <div id="forecast" class="forecast"></div>
+  </div>
+
+  <script>
+    let hourlyChart;
+
+    // Główna funkcja do pobierania i wyświetlania pogody
+    async function getWeather() {
+      const city = document.getElementById('cityInput').value.trim();
+      if (!city) return alert('Wpisz nazwę miasta');
+
+      try {
+        // Pobranie współrzędnych geograficznych z Nominatim
+        const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city)}`);
+        const geoData = await geoRes.json();
+        if (!geoData.length) throw new Error('Nie znaleziono miasta');
+
+        const { lat, lon, display_name } = geoData[0];
+
+        // Pobranie danych pogodowych z Open-Meteo
+        const weatherRes = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m&daily=temperature_2m_max,temperature_2m_min,weathercode&forecast_days=4&timezone=auto&current_weather=true`
+        );
+        const weatherData = await weatherRes.json();
+
+        const current = weatherData.current_weather;
+        const hourly = weatherData.hourly;
+        const daily = weatherData.daily;
+
+        const now = new Date();
+        const futureHourly = hourly.time.map((t, i) => ({
+          time: new Date(t),
+          temp: hourly.temperature_2m[i]
+        })).filter(d => d.time > now).slice(0, 24);
+
+        // Przygotowanie danych do wykresu
+        const labels = futureHourly.map(d => d.time.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' }));
+        const dataTemps = futureHourly.map(d => d.temp);
+
+        // Wyświetlenie informacji o aktualnej pogodzie
+        const currentIcon = getWeatherIcon(current.weathercode);
+        document.getElementById('weather').innerHTML = `
+          <div class="icon">${currentIcon}</div>
+          <h2>${display_name.split(',')[0]}</h2>
+          <p>Aktualnie: ${current.temperature}°C o ${new Date(current.time).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}</p>
+        `;
+
+        // Prognoza na kolejne 3 dni
+        let forecastHTML = '<h3>Prognoza na kolejne 3 dni:</h3>';
+        for (let i = 1; i < 4; i++) {
+          const day = new Date(daily.time[i]).toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' });
+          const weatherCode = daily.weathercode[i];
+          const weatherIcon = getWeatherIcon(weatherCode);
+          forecastHTML += `<p>${weatherIcon} <strong>${day}</strong>: 🌙 noc ${daily.temperature_2m_min[i]}°C / ☀️ dzień ${daily.temperature_2m_max[i]}°C</p>`;
+        }
+        document.getElementById('forecast').innerHTML = forecastHTML;
+
+        // Aktualizacja wykresu
+        updateHourlyChart(labels, dataTemps);
+
+      } catch (error) {
+        alert(error.message);
+      }
+    }
+
+    // Funkcja aktualizująca wykres godzinowy
+    function updateHourlyChart(labels, temps) {
+      const ctx = document.getElementById('hourlyChart').getContext('2d');
+      if (hourlyChart) hourlyChart.destroy();
+      hourlyChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Temp. °C (następne 24 h)',
+            data: temps,
+            borderColor: 'rgb(255, 99, 132)',
+            fill: false,
+            tension: 0.3
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              title: {
+                display: true,
+                text: '°C'
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              position: 'top'
+            },
+            title: {
+              display: true,
+              text: 'Temperatura godzinowa (następne 24 h)'
+            }
+          }
+        }
+      });
+    }
+
+    // Funkcja pomocnicza - ikona według temperatury
+    function getIcon(temp) {
+      return temp >= 25 ? '🔥' : temp >= 15 ? '☀️' : temp >= 5 ? '🌤️' : '❄️';
+    }
+
+    // Zamiana kodów pogody na ikony emoji
+    function getWeatherIcon(code) {
+      if (code === 0) return '☀️';
+      if ([1, 2, 3].includes(code)) return '⛅';
+      if ([45, 48].includes(code)) return '🌫️';
+      if ([51, 53, 55].includes(code)) return '🌦️';
+      if ([61, 63, 65, 80, 81, 82].includes(code)) return '🌧️';
+      if ([71, 73, 75, 85, 86].includes(code)) return '🌨️';
+      if ([95, 96, 99].includes(code)) return '⛈️';
+      return '❓';
+    }
+  </script>
+</body>
+</html>
+
