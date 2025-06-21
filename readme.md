@@ -63,7 +63,6 @@ Możesz udostępnić aplikację za pomocą GitHub Pages:
 
 ## 👤 Autor
 
-**Imię i nazwisko:** Twoje Imię\
-**Numer indeksu:** 123456\
-**Kontakt:** [twoj@email.com](mailto\:twoj@email.com)
+**Imię i nazwisko:** Adrian Jurkiewicz\
+**Kontakt:** adrianjurkiewicz007@gmail.com
 
