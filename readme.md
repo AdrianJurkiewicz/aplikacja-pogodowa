@@ -85,5 +85,5 @@ http://localhost:8080/aplikacja_pogodowa.html
 
 ---
 
-*Projekt przygotowany w ramach zajęć ****„Narzędzia procesu tworzenia oprogramowania”**** – semestralne zaliczenie aplikacji webowej.*
+*Projekt przygotowany w ramach zajęć ****„Narzędzia procesu tworzenia oprogramowania”**** – semestralne zaliczenie*
 
